@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://facepilot.example.com/sitemap.xml

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">FacePilot logo</title>
+  <desc id="desc">A futuristic pilot helmet with face tracking frame</desc>
+  <defs>
+    <linearGradient id="mark" x1="46" y1="34" x2="208" y2="222" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#42d392"/>
+      <stop offset="0.48" stop-color="#6ae6ff"/>
+      <stop offset="1" stop-color="#ffcf5a"/>
+    </linearGradient>
+    <linearGradient id="visor" x1="76" y1="103" x2="180" y2="132" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6ae6ff"/>
+      <stop offset="1" stop-color="#42d392"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.258 0 0 0 0 0.827 0 0 0 0 0.573 0 0 0 0.7 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect x="18" y="18" width="220" height="220" rx="54" fill="#090d14"/>
+  <path d="M66 48h124c10 0 18 8 18 18v124c0 10-8 18-18 18H66c-10 0-18-8-18-18V66c0-10 8-18 18-18Z" fill="#111824" stroke="url(#mark)" stroke-width="8"/>
+  <g filter="url(#glow)">
+    <path d="M82 143c0-43 24-75 46-75s46 32 46 75v22c0 12-10 22-22 22h-48c-12 0-22-10-22-22v-22Z" fill="#162033"/>
+    <path d="M94 141c0-32 16-56 34-56s34 24 34 56v20c0 6-5 11-11 11h-46c-6 0-11-5-11-11v-20Z" fill="#f4f7fb"/>
+    <path d="M89 119c8-17 21-27 39-27s31 10 39 27v22c-10 7-23 11-39 11s-29-4-39-11v-22Z" fill="#10141b"/>
+    <rect x="95" y="111" width="66" height="22" rx="11" fill="url(#visor)"/>
+    <path d="M109 160c10 9 28 9 38 0" fill="none" stroke="#42d392" stroke-width="7" stroke-linecap="round"/>
+  </g>
+  <path d="M55 96V72c0-9 8-17 17-17h23" fill="none" stroke="#6ae6ff" stroke-width="7" stroke-linecap="round"/>
+  <path d="M201 96V72c0-9-8-17-17-17h-23" fill="none" stroke="#42d392" stroke-width="7" stroke-linecap="round"/>
+  <path d="M55 160v24c0 9 8 17 17 17h23" fill="none" stroke="#42d392" stroke-width="7" stroke-linecap="round"/>
+  <path d="M201 160v24c0 9-8 17-17 17h-23" fill="none" stroke="#ffcf5a" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="62" cy="128" r="8" fill="#42d392"/>
+  <circle cx="194" cy="128" r="8" fill="#ffcf5a"/>
+</svg>

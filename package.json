@@ -1,0 +1,24 @@
+{
+  "name": "facepilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FacePilot is a webcam-powered browser runner/shooter controlled by facial expressions.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace server\" \"npm run dev --workspace client\"",
+    "build": "npm run build --workspace client",
+    "preview:static": "node tools/preview-server.mjs",
+    "start": "npm run start --workspace server",
+    "start:prod": "NODE_ENV=production npm run start --workspace server",
+    "lint": "npm run lint --workspace client"
+  },
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

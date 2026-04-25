@@ -1,0 +1,11 @@
+{
+  "name": "FacePilot",
+  "short_name": "FacePilot",
+  "description": "A webcam controlled browser runner shooter built with React, Canvas, and face-api.js.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d14",
+  "theme_color": "#090d14",
+  "orientation": "landscape-primary",
+  "categories": ["games", "entertainment"]
+}
