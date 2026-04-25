@@ -30,12 +30,15 @@ git push origin main
 
 ```text
 Framework Preset: Vite
-Build Command: npm run build --workspace client
+Root Directory: leave empty / repository root
+Build Command: npm run build
 Output Directory: client/dist
 Install Command: npm install
 ```
 
 The included `vercel.json` already contains these settings.
+
+Important: do not set Vercel Root Directory to `client`. This project uses npm workspaces from the repository root.
 
 ### 3. Deploy
 
@@ -66,7 +69,8 @@ git push origin main
 4. Use these settings:
 
 ```text
-Build Command: npm run build --workspace client
+Base Directory: leave empty / repository root
+Build Command: npm run build
 Publish Directory: client/dist
 ```
 
