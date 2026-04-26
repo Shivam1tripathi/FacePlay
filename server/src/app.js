@@ -4,6 +4,9 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import helmet from 'helmet';
+import { isDatabaseConnected } from './config/database.js';
+import { leaderboardRouter } from './routes/leaderboard.js';
+import { usersRouter } from './routes/users.js';
 
 export function createApp() {
   const app = express();
@@ -23,9 +26,13 @@ export function createApp() {
     response.json({
       ok: true,
       service: 'facepilot-api',
-      milestone: 'face-sensor'
+      milestone: 'leaderboard',
+      database: isDatabaseConnected() ? 'connected' : 'unavailable'
     });
   });
+
+  app.use('/api/users', usersRouter);
+  app.use('/api/leaderboard', leaderboardRouter);
 
   if (process.env.NODE_ENV === 'production' && existsSync(clientDistPath)) {
     app.use(express.static(clientDistPath));
@@ -34,6 +41,11 @@ export function createApp() {
       response.sendFile(path.join(clientDistPath, 'index.html'));
     });
   }
+
+  app.use((error, _request, response, _next) => {
+    console.error(error);
+    response.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'Internal server error' });
+  });
 
   return app;
 }

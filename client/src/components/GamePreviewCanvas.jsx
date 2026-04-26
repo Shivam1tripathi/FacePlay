@@ -7,6 +7,17 @@ const WORLD = {
   floor: 344
 };
 
+const THREAT_CONFIG = {
+  barrier: { points: 40, damage: 20 },
+  drone: { points: 50, damage: 25 },
+  spike: { points: 60, damage: 30 },
+  laser: { points: 70, damage: 35 },
+  mine: { points: 45, damage: 40 },
+  fastOrb: { points: 65, damage: 20 },
+  shieldBot: { points: 80, damage: 25 },
+  heavyBlock: { points: 100, damage: 50 }
+};
+
 const INITIAL_GAME = {
   player: { x: 130, y: WORLD.floor - 48, width: 30, height: 48, vy: 0, invincible: 0 },
   bullets: [],
@@ -25,10 +36,11 @@ const INITIAL_GAME = {
   gameOver: false
 };
 
-export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleFullscreen, onStop }) {
+export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleFullscreen, onStop, playerName, onGameOver, sensorActions }) {
   const canvasRef = useRef(null);
   const controlsRef = useRef(controls);
   const isRunningRef = useRef(isRunning);
+  const onGameOverRef = useRef(onGameOver);
   const gameRef = useRef(cloneGame());
   const smileLatchRef = useRef(false);
   const shootLatchRef = useRef(false);
@@ -36,6 +48,10 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
   useEffect(() => {
     controlsRef.current = controls;
   }, [controls]);
+
+  useEffect(() => {
+    onGameOverRef.current = onGameOver;
+  }, [onGameOver]);
 
   useEffect(() => {
     isRunningRef.current = isRunning;
@@ -56,15 +72,15 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
       const delta = Math.min((time - lastTime) / 1000, 0.05);
       lastTime = time;
       if (isRunningRef.current) {
-        updateGame(gameRef.current, controlsRef.current, smileLatchRef, shootLatchRef, delta);
+        updateGame(gameRef.current, controlsRef.current, smileLatchRef, shootLatchRef, onGameOverRef, delta);
       }
-      drawGame(context, canvas, gameRef.current, controlsRef.current, time, isRunningRef.current);
+      drawGame(context, canvas, gameRef.current, controlsRef.current, time, isRunningRef.current, playerName);
       frameId = requestAnimationFrame(render);
     };
 
     frameId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(frameId);
-  }, []);
+  }, [playerName]);
 
   return (
     <section className="preview-panel" aria-label="FacePilot runner shooter preview">
@@ -73,6 +89,7 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
           <p className="eyebrow">Game test</p>
           <h2>FacePilot arena</h2>
         </div>
+        {sensorActions}
         <button type="button" className="game-fullscreen-button" onClick={onToggleFullscreen}>
           {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
           {isFullscreen ? 'Exit full screen' : 'Full screen'}
@@ -87,7 +104,7 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
   );
 }
 
-function updateGame(game, controls, smileLatchRef, shootLatchRef, delta) {
+function updateGame(game, controls, smileLatchRef, shootLatchRef, onGameOverRef, delta) {
   if (game.gameOver) {
     if (controls.isSmiling || controls.didShoot) {
       Object.assign(game, cloneGame());
@@ -148,6 +165,9 @@ function updateGame(game, controls, smileLatchRef, shootLatchRef, delta) {
     if (threat.type === 'drone') {
       threat.y += Math.sin(performance.now() / 190 + threat.phase) * 22 * delta;
     }
+    if (threat.type === 'fastOrb') {
+      threat.y = threat.baseY + Math.sin(performance.now() / 150 + threat.phase) * 14;
+    }
     if (threat.type === 'laser') {
       threat.y = threat.baseY + Math.sin(performance.now() / 260 + threat.phase) * 18;
     }
@@ -159,7 +179,7 @@ function updateGame(game, controls, smileLatchRef, shootLatchRef, delta) {
     particle.life -= delta;
   }
 
-  handleCollisions(game);
+  handleCollisions(game, onGameOverRef);
   game.bullets = game.bullets.filter((bullet) => bullet.x < WORLD.width + 40);
   game.threats = game.threats.filter((threat) => threat.x > -80);
   game.particles = game.particles.filter((particle) => particle.life > 0);
@@ -197,10 +217,30 @@ function pickThreatType(timeAlive) {
     return 'spike';
   }
 
-  if (roll < 0.34) return 'barrier';
-  if (roll < 0.58) return 'drone';
-  if (roll < 0.82) return 'spike';
-  return 'laser';
+  if (timeAlive < 45) {
+    if (roll < 0.34) return 'barrier';
+    if (roll < 0.58) return 'drone';
+    if (roll < 0.82) return 'spike';
+    return 'laser';
+  }
+
+  if (timeAlive < 65) {
+    if (roll < 0.24) return 'barrier';
+    if (roll < 0.43) return 'drone';
+    if (roll < 0.6) return 'spike';
+    if (roll < 0.76) return 'laser';
+    if (roll < 0.9) return 'mine';
+    return 'fastOrb';
+  }
+
+  if (roll < 0.18) return 'barrier';
+  if (roll < 0.33) return 'drone';
+  if (roll < 0.47) return 'spike';
+  if (roll < 0.6) return 'laser';
+  if (roll < 0.72) return 'mine';
+  if (roll < 0.84) return 'fastOrb';
+  if (roll < 0.94) return 'shieldBot';
+  return 'heavyBlock';
 }
 
 function createThreat(type) {
@@ -245,6 +285,48 @@ function createThreat(type) {
     };
   }
 
+  if (type === 'mine') {
+    return {
+      ...baseThreat,
+      y: WORLD.floor - 24,
+      width: 34,
+      height: 24,
+      speedMultiplier: 0.9
+    };
+  }
+
+  if (type === 'fastOrb') {
+    const baseY = random(WORLD.floor - 118, WORLD.floor - 72);
+    return {
+      ...baseThreat,
+      y: baseY,
+      baseY,
+      width: 26,
+      height: 26,
+      speedMultiplier: 1.42
+    };
+  }
+
+  if (type === 'shieldBot') {
+    return {
+      ...baseThreat,
+      y: WORLD.floor - 46,
+      width: 48,
+      height: 46,
+      speedMultiplier: 0.82
+    };
+  }
+
+  if (type === 'heavyBlock') {
+    return {
+      ...baseThreat,
+      y: WORLD.floor - 48,
+      width: 46,
+      height: 48,
+      speedMultiplier: 0.72
+    };
+  }
+
   return {
     ...baseThreat,
     y: WORLD.floor - 42,
@@ -254,7 +336,7 @@ function createThreat(type) {
   };
 }
 
-function handleCollisions(game) {
+function handleCollisions(game, onGameOverRef) {
   const playerBox = game.player;
 
   for (const bullet of game.bullets) {
@@ -282,7 +364,7 @@ function handleCollisions(game) {
 
   for (const threat of game.threats) {
     if (game.player.invincible <= 0 && intersects(playerBox, threat)) {
-      game.health = Math.max(0, game.health - 25);
+      game.health = Math.max(0, game.health - getThreatDamage(threat.type));
       game.player.invincible = 1.1;
       threat.hit = true;
       pushParticles(game, playerBox.x + 16, playerBox.y + 28, '#ff6978', 18);
@@ -297,6 +379,10 @@ function handleCollisions(game) {
 
         if (game.lives <= 0) {
           game.gameOver = true;
+          if (!game.scoreSubmitted) {
+            game.scoreSubmitted = true;
+            onGameOverRef.current?.(game.score);
+          }
         }
       }
     }
@@ -320,7 +406,7 @@ function fireBulletBurst(game, player) {
   }
 }
 
-function drawGame(context, canvas, game, controls, time, isRunning) {
+function drawGame(context, canvas, game, controls, time, isRunning, playerName) {
   game.displayedHealth += (game.health - game.displayedHealth) * 0.12;
   context.clearRect(0, 0, canvas.width, canvas.height);
   drawWorld(context, canvas, time, game.speed);
@@ -329,7 +415,7 @@ function drawGame(context, canvas, game, controls, time, isRunning) {
   drawPlayer(context, game.player, controls, game.shootFlash);
   drawParticles(context, game.particles);
   drawScorePopups(context, game.scorePopups);
-  drawHud(context, game, controls);
+  drawHud(context, game, controls, playerName);
 
   if (game.gameOver) {
     drawGameOver(context, canvas);
@@ -490,6 +576,63 @@ function drawThreats(context, threats) {
 
       context.fillStyle = '#f4f7fb';
       context.fillRect(threat.x + 8, threat.y + 4, threat.width - 16, 3);
+    } else if (threat.type === 'mine') {
+      context.fillStyle = 'rgba(255, 105, 120, 0.2)';
+      context.beginPath();
+      context.ellipse(threat.x + threat.width / 2, threat.y + threat.height + 2, 24, 5, 0, 0, Math.PI * 2);
+      context.fill();
+
+      context.fillStyle = '#10141b';
+      roundedRect(context, threat.x + 3, threat.y + 7, threat.width - 6, threat.height - 6, 9);
+      context.fill();
+
+      context.fillStyle = '#ff6978';
+      context.beginPath();
+      context.arc(threat.x + threat.width / 2, threat.y + 13, 9, 0, Math.PI * 2);
+      context.fill();
+
+      context.fillStyle = '#ffcf5a';
+      context.fillRect(threat.x + 15, threat.y + 1, 4, 8);
+      context.fillRect(threat.x + 8, threat.y + 13, 18, 3);
+    } else if (threat.type === 'fastOrb') {
+      context.fillStyle = 'rgba(106, 230, 255, 0.2)';
+      context.beginPath();
+      context.arc(threat.x + 13, threat.y + 13, 17, 0, Math.PI * 2);
+      context.fill();
+
+      context.fillStyle = '#6ae6ff';
+      context.beginPath();
+      context.arc(threat.x + 13, threat.y + 13, 12, 0, Math.PI * 2);
+      context.fill();
+
+      context.fillStyle = '#10141b';
+      context.fillRect(threat.x + 5, threat.y + 11, 16, 4);
+      context.fillStyle = '#42d392';
+      context.fillRect(threat.x - 10, threat.y + 12, 10, 3);
+    } else if (threat.type === 'shieldBot') {
+      context.fillStyle = '#42d392';
+      roundedRect(context, threat.x, threat.y + 7, threat.width, threat.height - 7, 10);
+      context.fill();
+
+      context.fillStyle = '#10141b';
+      roundedRect(context, threat.x + 7, threat.y + 15, threat.width - 14, 13, 6);
+      context.fill();
+
+      context.fillStyle = '#6ae6ff';
+      context.fillRect(threat.x + 15, threat.y + 19, 18, 5);
+      context.fillStyle = '#ffcf5a';
+      context.fillRect(threat.x + 8, threat.y, threat.width - 16, 8);
+    } else if (threat.type === 'heavyBlock') {
+      context.fillStyle = '#7b8494';
+      roundedRect(context, threat.x, threat.y, threat.width, threat.height, 8);
+      context.fill();
+
+      context.fillStyle = '#202b3b';
+      context.fillRect(threat.x + 6, threat.y + 8, threat.width - 12, 8);
+      context.fillRect(threat.x + 6, threat.y + 25, threat.width - 12, 8);
+
+      context.fillStyle = '#ffcf5a';
+      context.fillRect(threat.x + 9, threat.y + 38, 28, 4);
     } else {
       context.fillStyle = '#ffcf5a';
       roundedRect(context, threat.x, threat.y, threat.width, threat.height, 7);
@@ -534,14 +677,17 @@ function drawScorePopups(context, scorePopups) {
   context.textAlign = 'left';
 }
 
-function drawHud(context, game, controls) {
+function drawHud(context, game, controls, playerName) {
   context.fillStyle = 'rgba(8, 12, 18, 0.62)';
-  roundedRect(context, 20, 18, 330, 156, 8);
+  roundedRect(context, 20, 18, 330, 188, 8);
   context.fill();
 
   context.fillStyle = '#f4f7fb';
   context.font = '900 22px Inter, sans-serif';
   context.fillText(`Score ${Math.floor(game.score)}`, 38, 50);
+  context.font = '900 12px Inter, sans-serif';
+  context.fillStyle = '#6ae6ff';
+  context.fillText(playerName || 'No pilot', 220, 50);
 
   context.font = '800 14px Inter, sans-serif';
   context.fillStyle = '#a3afbf';
@@ -586,11 +732,11 @@ function drawHud(context, game, controls) {
         : 'Hold center';
 
   context.fillStyle = '#42d392';
-  context.font = '800 14px Inter, sans-serif';
-  context.fillText(action, WORLD.width - 170, 42);
+  context.font = '900 12px Inter, sans-serif';
+  context.fillText(action, 38, 178);
 
   context.fillStyle = '#a3afbf';
-  context.fillText(`Speed ${Math.round(game.speed)}`, WORLD.width - 170, 66);
+  context.fillText(`Speed ${Math.round(game.speed)}`, 220, 178);
 }
 
 function drawTimingBar(context, x, y, timeAlive) {
@@ -675,15 +821,17 @@ function cloneGame() {
     bullets: [],
     threats: [],
     particles: [],
-    scorePopups: []
+    scorePopups: [],
+    scoreSubmitted: false
   };
 }
 
 function getThreatPoints(type) {
-  if (type === 'laser') return 70;
-  if (type === 'spike') return 60;
-  if (type === 'drone') return 50;
-  return 40;
+  return THREAT_CONFIG[type]?.points ?? THREAT_CONFIG.barrier.points;
+}
+
+function getThreatDamage(type) {
+  return THREAT_CONFIG[type]?.damage ?? THREAT_CONFIG.barrier.damage;
 }
 
 function isGrounded(player) {
