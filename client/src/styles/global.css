@@ -413,6 +413,10 @@ p {
   display: none;
 }
 
+.sensor-panel--overlay .video-stage video {
+  object-fit: contain;
+}
+
 .sensor-panel--overlay .error-message {
   font-size: 0.72rem;
   padding: 8px;

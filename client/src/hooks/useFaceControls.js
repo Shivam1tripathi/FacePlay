@@ -19,6 +19,7 @@ const DEFAULT_CONTROLS = {
   mouthOpenThreshold: 0.24,
   headDirection: 'Center',
   headOffset: 0,
+  faceScale: 0,
   trackingConfidence: 0
 };
 
@@ -49,10 +50,11 @@ export function useFaceControls() {
 
   const calibrationMessage = useMemo(() => {
     if (!controls.faceDetected) return 'Keep your face centered';
+    if (controls.faceScale > 0.72) return 'Move slightly back';
     if (controls.headDirection === 'Left') return 'Head left detected';
     if (controls.headDirection === 'Right') return 'Head right detected';
     return 'Face centered';
-  }, [controls.faceDetected, controls.headDirection]);
+  }, [controls.faceDetected, controls.faceScale, controls.headDirection]);
 
   const recalibrate = useCallback(() => {
     smoothedHeadOffsetRef.current = 0;
@@ -97,15 +99,7 @@ export function useFaceControls() {
     isDetectingRef.current = true;
 
     try {
-      const options = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 224,
-        scoreThreshold: 0.45
-      });
-
-      const result = await faceapi
-        .detectSingleFace(video, options)
-        .withFaceLandmarks()
-        .withFaceExpressions();
+      const result = await detectFace(video);
 
       drawFaceOverlay({ result, video, overlay });
 
@@ -124,6 +118,7 @@ export function useFaceControls() {
       const mouthOpenRatio = getMouthOpenRatio(result.landmarks);
       const shootState = getShootState(mouthOpenRatio, mouthArmedRef, lastShootAtRef);
       const headState = getHeadState(result, smoothedHeadOffsetRef);
+      const faceScale = getFaceScale(result, video);
 
       setControls({
         faceDetected: true,
@@ -137,6 +132,7 @@ export function useFaceControls() {
         mouthOpenThreshold: thresholds.mouthOpen,
         headDirection: headState.direction,
         headOffset: headState.offset,
+        faceScale,
         trackingConfidence: result.detection.score
       });
     } finally {
@@ -202,6 +198,22 @@ export function useFaceControls() {
   };
 }
 
+async function detectFace(video) {
+  const primaryOptions = new faceapi.TinyFaceDetectorOptions({
+    inputSize: 320,
+    scoreThreshold: 0.32
+  });
+  const fallbackOptions = new faceapi.TinyFaceDetectorOptions({
+    inputSize: 416,
+    scoreThreshold: 0.22
+  });
+
+  const primaryResult = await faceapi.detectSingleFace(video, primaryOptions).withFaceLandmarks().withFaceExpressions();
+  if (primaryResult) return primaryResult;
+
+  return faceapi.detectSingleFace(video, fallbackOptions).withFaceLandmarks().withFaceExpressions();
+}
+
 function getSmileScore(expressionScore, curveScore, smoothedSmileRef) {
   const rawScore = Math.max(expressionScore * 1.08, curveScore, expressionScore * 0.5 + curveScore * 0.62);
   const riseFactor = rawScore > smoothedSmileRef.current ? 0.72 : 0.24;
@@ -247,4 +259,11 @@ function getHeadState(result, smoothedHeadOffsetRef) {
   }
 
   return { direction: 'Center', offset };
+}
+
+function getFaceScale(result, video) {
+  const box = result.detection.box;
+  const videoWidth = video.videoWidth || box.width || 1;
+  const videoHeight = video.videoHeight || box.height || 1;
+  return Math.max(box.width / videoWidth, box.height / videoHeight);
 }
