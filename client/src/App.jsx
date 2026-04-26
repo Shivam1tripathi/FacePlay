@@ -26,6 +26,7 @@ function App() {
   });
   const [playerName, setPlayerName] = useState("");
   const [authStatus, setAuthStatus] = useState("");
+  const [showInstructions, setShowInstructions] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardStatus, setLeaderboardStatus] =
     useState("Loading scores...");
@@ -76,6 +77,7 @@ function App() {
       const user = await startUserSession({ username, password });
       setPlayerName(user.displayName || user.username);
       setAuthStatus("User ready");
+      setShowInstructions(true);
     } catch (error) {
       setPlayerName("");
       setAuthStatus(error.message);
@@ -87,6 +89,7 @@ function App() {
     setPlayerName("");
     setCredentials({ username: "", password: "" });
     setAuthStatus("");
+    setShowInstructions(false);
   };
 
   const saveScore = async (score) => {
@@ -260,6 +263,58 @@ function App() {
           onCredentialsChange={setCredentials}
           onSubmit={confirmPlayerName}
         />
+      )}
+
+      {playerName && showInstructions && (
+        <div className="instruction-backdrop" role="presentation">
+          <section
+            className="instruction-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="instructionTitle"
+          >
+            <div className="instruction-header">
+              <img src="/facepilot-logo.svg" alt="" aria-hidden="true" />
+              <div>
+                <p className="eyebrow">Quick guide</p>
+                <h2 id="instructionTitle">How to play FacePilot</h2>
+              </div>
+            </div>
+
+            <div className="instruction-grid">
+              <article>
+                <Smile size={20} aria-hidden="true" />
+                <span>Smile</span>
+                <strong>Jump</strong>
+              </article>
+              <article>
+                <Crosshair size={20} aria-hidden="true" />
+                <span>Open mouth</span>
+                <strong>Shoot 4 bullets</strong>
+              </article>
+              <article>
+                <MoveHorizontal size={20} aria-hidden="true" />
+                <span>Turn head</span>
+                <strong>Move left/right</strong>
+              </article>
+              <article>
+                <Gauge size={20} aria-hidden="true" />
+                <span>Stay centered</span>
+                <strong>Better tracking</strong>
+              </article>
+            </div>
+
+            <ul className="instruction-list">
+              <li>Destroy obstacles to earn points.</li>
+              <li>Obstacle collisions reduce health based on obstacle type.</li>
+              <li>When health reaches zero, one life is lost.</li>
+            </ul>
+
+            <button type="button" onClick={() => setShowInstructions(false)}>
+              Got it
+            </button>
+          </section>
+        </div>
       )}
     </main>
   );

@@ -557,6 +557,94 @@ p {
   margin-bottom: 0;
 }
 
+.instruction-backdrop {
+  align-items: center;
+  background: rgba(4, 7, 12, 0.72);
+  backdrop-filter: blur(18px);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 21;
+}
+
+.instruction-modal {
+  background: var(--surface);
+  border: 1px solid rgba(106, 230, 255, 0.24);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  max-width: 560px;
+  padding: 22px;
+  width: min(100%, 560px);
+}
+
+.instruction-header {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.instruction-header img {
+  height: 54px;
+  width: 54px;
+}
+
+.instruction-header h2 {
+  font-size: 1.45rem;
+  margin: 0;
+}
+
+.instruction-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.instruction-grid article {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  min-height: 96px;
+  padding: 12px;
+}
+
+.instruction-grid svg {
+  color: var(--cyan);
+}
+
+.instruction-grid span,
+.instruction-list {
+  color: var(--muted);
+}
+
+.instruction-grid span {
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.instruction-grid strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.instruction-list {
+  display: grid;
+  gap: 7px;
+  line-height: 1.45;
+  margin: 16px 0;
+  padding-left: 20px;
+}
+
+.instruction-modal button {
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  color: #07120d;
+  width: 100%;
+}
+
 .metric-card.is-active {
   background: linear-gradient(135deg, rgba(66, 211, 146, 0.16), rgba(106, 230, 255, 0.08));
   border-color: rgba(66, 211, 146, 0.34);
@@ -914,6 +1002,48 @@ p {
   .login-backdrop {
     align-items: flex-end;
     padding: 10px;
+  }
+
+  .instruction-backdrop {
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  .instruction-modal {
+    max-height: calc(100vh - 20px);
+    overflow: auto;
+    padding: 18px;
+  }
+
+  .instruction-header {
+    margin-bottom: 14px;
+  }
+
+  .instruction-header img {
+    height: 46px;
+    width: 46px;
+  }
+
+  .instruction-header h2 {
+    font-size: 1.18rem;
+  }
+
+  .instruction-grid {
+    gap: 8px;
+  }
+
+  .instruction-grid article {
+    min-height: 78px;
+    padding: 10px;
+  }
+
+  .instruction-grid strong {
+    font-size: 0.84rem;
+  }
+
+  .instruction-list {
+    font-size: 0.86rem;
+    margin: 14px 0;
   }
 
   .login-modal {
