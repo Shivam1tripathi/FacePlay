@@ -1,8 +1,0 @@
-[build]
-  command = "npm run build --workspace client"
-  publish = "client/dist"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
