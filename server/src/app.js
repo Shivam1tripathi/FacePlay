@@ -5,8 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import helmet from 'helmet';
 import { isDatabaseConnected } from './config/database.js';
+import { identityRouter } from './routes/identity.js';
 import { leaderboardRouter } from './routes/leaderboard.js';
 import { usersRouter } from './routes/users.js';
+import { usernamesRouter } from './routes/usernames.js';
 
 export function createApp() {
   const app = express();
@@ -32,6 +34,8 @@ export function createApp() {
   });
 
   app.use('/api/users', usersRouter);
+  app.use('/api/usernames', usernamesRouter);
+  app.use('/api/identity', identityRouter);
   app.use('/api/leaderboard', leaderboardRouter);
 
   if (process.env.NODE_ENV === 'production' && existsSync(clientDistPath)) {

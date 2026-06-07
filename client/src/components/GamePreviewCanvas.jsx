@@ -33,8 +33,13 @@ const INITIAL_GAME = {
   timeAlive: 0,
   spawnTimer: 1.45,
   shootFlash: 0,
+  shootCooldown: 0,
+  weaponLevel: 1,
   gameOver: false
 };
+
+const PHASE_LENGTH = 30;
+const SHOOT_COOLDOWN_SEC = 0.52;
 
 export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleFullscreen, onStop, playerName, onGameOver, sensorActions }) {
   const canvasRef = useRef(null);
@@ -43,7 +48,6 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
   const onGameOverRef = useRef(onGameOver);
   const gameRef = useRef(cloneGame());
   const smileLatchRef = useRef(false);
-  const shootLatchRef = useRef(false);
 
   useEffect(() => {
     controlsRef.current = controls;
@@ -58,7 +62,6 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
     if (!isRunning) {
       gameRef.current = cloneGame();
       smileLatchRef.current = false;
-      shootLatchRef.current = false;
     }
   }, [isRunning]);
 
@@ -72,7 +75,7 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
       const delta = Math.min((time - lastTime) / 1000, 0.05);
       lastTime = time;
       if (isRunningRef.current) {
-        updateGame(gameRef.current, controlsRef.current, smileLatchRef, shootLatchRef, onGameOverRef, delta);
+        updateGame(gameRef.current, controlsRef.current, smileLatchRef, onGameOverRef, delta);
       }
       drawGame(context, canvas, gameRef.current, controlsRef.current, time, isRunningRef.current, playerName);
       frameId = requestAnimationFrame(render);
@@ -84,34 +87,43 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
 
   return (
     <section className="preview-panel" aria-label="FacePilot runner shooter preview">
-      <div className="panel-header compact">
-        <div>
-          <p className="eyebrow">Game test</p>
-          <h2>FacePilot arena</h2>
+      <div className={`panel-header compact${isFullscreen ? ' panel-header--fullscreen' : ''}`}>
+        {!isFullscreen && (
+          <div>
+            <p className="eyebrow">Game test</p>
+            <h2>FacePilot arena</h2>
+          </div>
+        )}
+        <div className="game-controls-bar">
+          {sensorActions}
+          <button
+            type="button"
+            className={`game-fullscreen-button${isFullscreen ? ' is-exit' : ''}`}
+            onClick={onToggleFullscreen}
+          >
+            {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            {isFullscreen ? 'Exit fullscreen' : 'Full screen'}
+          </button>
+          <button type="button" className="stop-game-button" onClick={onStop} disabled={!isRunning}>
+            <Square size={16} />
+            Stop game
+          </button>
         </div>
-        {sensorActions}
-        <button type="button" className="game-fullscreen-button" onClick={onToggleFullscreen}>
-          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-          {isFullscreen ? 'Exit full screen' : 'Full screen'}
-        </button>
-        <button type="button" className="stop-game-button" onClick={onStop} disabled={!isRunning}>
-          <Square size={16} />
-          Stop game
-        </button>
       </div>
       <canvas ref={canvasRef} className="game-preview" width={WORLD.width} height={WORLD.height} />
     </section>
   );
 }
 
-function updateGame(game, controls, smileLatchRef, shootLatchRef, onGameOverRef, delta) {
+function updateGame(game, controls, smileLatchRef, onGameOverRef, delta) {
   if (game.gameOver) {
     if (controls.isSmiling || controls.didShoot) {
       Object.assign(game, cloneGame());
-      shootLatchRef.current = false;
     }
     return;
   }
+
+  game.shootCooldown = Math.max(0, game.shootCooldown - delta);
 
   const player = game.player;
   const move = controls.headDirection === 'Left' ? -1 : controls.headDirection === 'Right' ? 1 : 0;
@@ -127,16 +139,6 @@ function updateGame(game, controls, smileLatchRef, shootLatchRef, onGameOverRef,
     smileLatchRef.current = false;
   }
 
-  if (controls.didShoot && !shootLatchRef.current) {
-    fireBulletBurst(game, player);
-    game.shootFlash = 0.16;
-    shootLatchRef.current = true;
-  }
-
-  if (!controls.didShoot && !controls.isShootCoolingDown) {
-    shootLatchRef.current = false;
-  }
-
   player.vy += 920 * delta;
   player.y += player.vy * delta;
   if (player.y > WORLD.floor - player.height) {
@@ -147,6 +149,14 @@ function updateGame(game, controls, smileLatchRef, shootLatchRef, onGameOverRef,
   player.invincible = Math.max(0, player.invincible - delta);
   game.shootFlash = Math.max(0, game.shootFlash - delta);
   game.timeAlive += delta;
+  updateWeaponLevel(game);
+
+  if (controls.didShoot && game.shootCooldown <= 0) {
+    fireBulletBurst(game, player);
+    game.shootFlash = 0.05;
+    game.shootCooldown = SHOOT_COOLDOWN_SEC;
+  }
+
   game.speed = getGameSpeed(game.timeAlive);
   game.score += delta * (7 + game.timeAlive * 0.08);
   game.spawnTimer -= delta;
@@ -337,7 +347,7 @@ function createThreat(type) {
 }
 
 function handleCollisions(game, onGameOverRef) {
-  const playerBox = game.player;
+  const playerBox = getPlayerHitbox(game.player);
 
   for (const bullet of game.bullets) {
     for (const threat of game.threats) {
@@ -363,7 +373,7 @@ function handleCollisions(game, onGameOverRef) {
   game.threats = game.threats.filter((threat) => !threat.hit);
 
   for (const threat of game.threats) {
-    if (game.player.invincible <= 0 && intersects(playerBox, threat)) {
+    if (game.player.invincible <= 0 && intersects(playerBox, getThreatHitbox(threat))) {
       game.health = Math.max(0, game.health - getThreatDamage(threat.type));
       game.player.invincible = 1.1;
       threat.hit = true;
@@ -391,8 +401,29 @@ function handleCollisions(game, onGameOverRef) {
   game.threats = game.threats.filter((threat) => !threat.hit);
 }
 
+function updateWeaponLevel(game) {
+  const phase = Math.floor(game.timeAlive / PHASE_LENGTH);
+  game.weaponLevel = Math.min(3, phase + 1);
+}
+
+function getBulletOffsetsForLevel(weaponLevel) {
+  if (weaponLevel <= 1) {
+    return [0];
+  }
+
+  if (weaponLevel === 2) {
+    return [-6, 6];
+  }
+
+  return [-12, -4, 4, 12];
+}
+
+function getBulletCountForLevel(weaponLevel) {
+  return getBulletOffsetsForLevel(weaponLevel).length;
+}
+
 function fireBulletBurst(game, player) {
-  const offsets = [-12, -4, 4, 12];
+  const offsets = getBulletOffsetsForLevel(game.weaponLevel);
 
   for (const offset of offsets) {
     game.bullets.push({
@@ -401,7 +432,7 @@ function fireBulletBurst(game, player) {
       width: 15,
       height: 5,
       speed: 520,
-      hitsLeft: 2
+      hitsLeft: 1
     });
   }
 }
@@ -531,11 +562,16 @@ function drawPlayer(context, player, controls, shootFlash) {
   context.fillRect(player.x + player.width - 12, player.y + player.height + 2, 5, 8);
 
   if (shootFlash > 0) {
+    const muzzleX = player.x + player.width + 14;
+    const muzzleY = player.y + 23;
+
+    context.save();
+    context.shadowBlur = 0;
     context.fillStyle = 'rgba(255, 207, 90, 0.95)';
-    roundedRect(context, player.x + player.width + 22, player.y + 20, 66, 5, 3);
+    context.beginPath();
+    context.arc(muzzleX, muzzleY, 3, 0, Math.PI * 2);
     context.fill();
-    context.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    context.fillRect(player.x + player.width + 24, player.y + 21, 22, 2);
+    context.restore();
   }
 
   context.restore();
@@ -737,11 +773,11 @@ function drawHud(context, game, controls, playerName) {
 
   context.fillStyle = '#a3afbf';
   context.fillText(`Speed ${Math.round(game.speed)}`, 220, 178);
+  context.fillText(`Guns x${getBulletCountForLevel(game.weaponLevel)}`, 220, 156);
 }
 
 function drawTimingBar(context, x, y, timeAlive) {
-  const phaseLength = 30;
-  const phaseProgress = (timeAlive % phaseLength) / phaseLength;
+  const phaseProgress = (timeAlive % PHASE_LENGTH) / PHASE_LENGTH;
   const width = 254;
   const height = 12;
 
@@ -832,6 +868,37 @@ function getThreatPoints(type) {
 
 function getThreatDamage(type) {
   return THREAT_CONFIG[type]?.damage ?? THREAT_CONFIG.barrier.damage;
+}
+
+function getPlayerHitbox(player) {
+  return {
+    x: player.x + 2,
+    y: player.y - 22,
+    width: player.width + 14,
+    height: player.height + 24
+  };
+}
+
+function getThreatHitbox(threat) {
+  if (threat.type === 'drone' || threat.type === 'laser' || threat.type === 'fastOrb') {
+    return {
+      x: threat.x - 2,
+      y: threat.y - 6,
+      width: threat.width + 4,
+      height: threat.height + 12
+    };
+  }
+
+  if (threat.type === 'shieldBot' || threat.type === 'heavyBlock') {
+    return {
+      x: threat.x - 1,
+      y: threat.y - 2,
+      width: threat.width + 2,
+      height: threat.height + 4
+    };
+  }
+
+  return threat;
 }
 
 function isGrounded(player) {
