@@ -11,13 +11,13 @@ export async function fetchLeaderboard() {
   return normalizeScores(data.scores);
 }
 
-export async function submitScore({ username, password, score }) {
+export async function submitScore({ username, score }) {
   const response = await fetch(`${API_BASE_URL}/api/leaderboard`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ username, password, score })
+    body: JSON.stringify({ username, score })
   });
 
   if (!response.ok) {

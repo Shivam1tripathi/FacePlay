@@ -1,13 +1,12 @@
 import mongoose from 'mongoose';
 
-const userSchema = new mongoose.Schema(
+const accountSchema = new mongoose.Schema(
   {
     username: {
       type: String,
       required: true,
       unique: true,
       trim: true,
-      lowercase: true,
       maxlength: 18
     },
     displayName: {
@@ -16,14 +15,6 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 18
     },
-    passwordHash: {
-      type: String,
-      required: true
-    },
-    passwordSalt: {
-      type: String,
-      required: true
-    },
     highScore: {
       type: Number,
       default: 0,
@@ -31,10 +22,11 @@ const userSchema = new mongoose.Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    collection: 'accounts'
   }
 );
 
-userSchema.index({ highScore: -1, updatedAt: 1 });
+accountSchema.index({ highScore: -1, updatedAt: 1 });
 
-export const User = mongoose.model('User', userSchema);
+export const Account = mongoose.model('Account', accountSchema);

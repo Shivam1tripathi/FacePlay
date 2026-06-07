@@ -10,26 +10,39 @@ import {
 } from "lucide-react";
 import { FaceSensorPanel } from "./components/FaceSensorPanel.jsx";
 import { GamePreviewCanvas } from "./components/GamePreviewCanvas.jsx";
-import { LoginModal } from "./components/LoginModal.jsx";
 import { MetricCard } from "./components/MetricCard.jsx";
+import { LeaderboardModal } from "./components/LeaderboardModal.jsx";
+import { UsernameMenu } from "./components/UsernameMenu.jsx";
 import { useFaceControls } from "./hooks/useFaceControls.js";
 import { fetchLeaderboard, submitScore } from "./services/leaderboardApi.js";
-import { startUserSession } from "./services/userApi.js";
+import { fetchUsernamePrefixes } from "./services/userApi.js";
+import {
+  generateAnonymousUsername,
+  readStoredUsername,
+  storeUsername,
+} from "./services/usernameGenerator.js";
+
+const USERNAME_STORAGE_KEY =
+  import.meta.env.VITE_USERNAME_STORAGE_KEY || "facepilot.username";
 
 function App() {
   const sensor = useFaceControls();
   const fullscreenRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [credentials, setCredentials] = useState({
-    username: "",
-    password: "",
-  });
-  const [playerName, setPlayerName] = useState("");
-  const [authStatus, setAuthStatus] = useState("");
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [playerName, setPlayerName] = useState(() =>
+    readStoredUsername(USERNAME_STORAGE_KEY),
+  );
+  const [isUsernameLoading, setIsUsernameLoading] = useState(
+    () => !readStoredUsername(USERNAME_STORAGE_KEY),
+  );
   const [leaderboard, setLeaderboard] = useState([]);
   const [leaderboardStatus, setLeaderboardStatus] =
     useState("Loading scores...");
+  const [gameOverModal, setGameOverModal] = useState({
+    open: false,
+    score: 0,
+    isSaving: false,
+  });
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -53,6 +66,49 @@ function App() {
       });
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveIdentity = async () => {
+      const storedUsername = readStoredUsername(USERNAME_STORAGE_KEY);
+
+      if (storedUsername) {
+        return;
+      }
+
+      try {
+        const prefixes = await fetchUsernamePrefixes();
+        const nextUsername = generateAnonymousUsername(prefixes);
+
+        if (cancelled) {
+          return;
+        }
+
+        storeUsername(USERNAME_STORAGE_KEY, nextUsername);
+        setPlayerName(nextUsername);
+      } catch {
+        const fallbackUsername = generateAnonymousUsername();
+
+        if (cancelled) {
+          return;
+        }
+
+        storeUsername(USERNAME_STORAGE_KEY, fallbackUsername);
+        setPlayerName(fallbackUsername);
+      } finally {
+        if (!cancelled) {
+          setIsUsernameLoading(false);
+        }
+      }
+    };
+
+    resolveIdentity();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
       await fullscreenRef.current?.requestFullscreen();
@@ -62,56 +118,40 @@ function App() {
     await document.exitFullscreen();
   };
 
-  const confirmPlayerName = async (event) => {
-    event.preventDefault();
-    const username = credentials.username.trim().slice(0, 18);
-    const password = credentials.password;
+  const handleGameOver = async (score) => {
+    const finalScore = Math.floor(score);
 
-    if (!username || password.length < 4) {
-      setAuthStatus("Enter username and 4+ character password");
+    setGameOverModal({
+      open: true,
+      score: finalScore,
+      isSaving: Boolean(playerName && finalScore > 0),
+    });
+
+    if (!playerName) {
+      setGameOverModal((current) => ({ ...current, isSaving: false }));
       return;
     }
 
     try {
-      setAuthStatus("Checking user...");
-      const user = await startUserSession({ username, password });
-      setPlayerName(user.displayName || user.username);
-      setAuthStatus("User ready");
-      setShowInstructions(true);
-    } catch (error) {
-      setPlayerName("");
-      setAuthStatus(error.message);
-    }
-  };
+      const scores =
+        finalScore > 0
+          ? await submitScore({
+              username: playerName,
+              score: finalScore,
+            })
+          : await fetchLeaderboard();
 
-  const resetPlayerName = () => {
-    if (sensor.isRunning) return;
-    setPlayerName("");
-    setCredentials({ username: "", password: "" });
-    setAuthStatus("");
-    setShowInstructions(false);
-  };
-
-  const saveScore = async (score) => {
-    if (
-      !playerName ||
-      !credentials.username ||
-      !credentials.password ||
-      score <= 0
-    )
-      return;
-
-    try {
-      const scores = await submitScore({
-        username: credentials.username,
-        password: credentials.password,
-        score: Math.floor(score),
-      });
       setLeaderboard(scores);
       setLeaderboardStatus(scores.length ? "" : "No scores yet");
     } catch {
       setLeaderboardStatus("Could not save score");
+    } finally {
+      setGameOverModal((current) => ({ ...current, isSaving: false }));
     }
+  };
+
+  const closeGameOverModal = () => {
+    setGameOverModal((current) => ({ ...current, open: false }));
   };
 
   return (
@@ -130,15 +170,23 @@ function App() {
             </span>
           </div>
           <div className="nav-status">
-            {playerName && (
-              <button
-                type="button"
-                className="user-chip"
-                onClick={resetPlayerName}
-                disabled={sensor.isRunning}
+            {isUsernameLoading ? (
+              <span
+                className="username-loading-chip user-chip"
+                aria-live="polite"
+                aria-busy="true"
               >
-                {playerName}
-              </button>
+                <Loader2 size={16} className="spin" aria-hidden="true" />
+                Assigning pilot...
+              </span>
+            ) : (
+              playerName && (
+                <UsernameMenu
+                  username={playerName}
+                  storageKey={USERNAME_STORAGE_KEY}
+                  onUsernameChange={setPlayerName}
+                />
+              )
             )}
           </div>
         </nav>
@@ -158,7 +206,7 @@ function App() {
               onToggleFullscreen={toggleFullscreen}
               onStop={sensor.stop}
               playerName={playerName}
-              onGameOver={saveScore}
+              onGameOver={handleGameOver}
               sensorActions={
                 <div className="game-sensor-actions">
                   <button
@@ -166,14 +214,13 @@ function App() {
                     className="sensor-start-button"
                     onClick={sensor.start}
                     disabled={
-                      !playerName || sensor.isBooting || sensor.isRunning
+                      isUsernameLoading ||
+                      !playerName ||
+                      sensor.isBooting ||
+                      sensor.isRunning
                     }
                   >
-                    {sensor.isBooting ? (
-                      <Loader2 className="spin" size={18} />
-                    ) : (
-                      <Play size={18} />
-                    )}
+                    <Play size={18} />
                     {sensor.isBooting
                       ? "Starting"
                       : sensor.isRunning
@@ -256,66 +303,15 @@ function App() {
         </aside>
       </section>
 
-      {!playerName && (
-        <LoginModal
-          credentials={credentials}
-          authStatus={authStatus}
-          onCredentialsChange={setCredentials}
-          onSubmit={confirmPlayerName}
-        />
-      )}
-
-      {playerName && showInstructions && (
-        <div className="instruction-backdrop" role="presentation">
-          <section
-            className="instruction-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="instructionTitle"
-          >
-            <div className="instruction-header">
-              <img src="/facepilot-logo.svg" alt="" aria-hidden="true" />
-              <div>
-                <p className="eyebrow">Quick guide</p>
-                <h2 id="instructionTitle">How to play FacePilot</h2>
-              </div>
-            </div>
-
-            <div className="instruction-grid">
-              <article>
-                <Smile size={20} aria-hidden="true" />
-                <span>Smile</span>
-                <strong>Jump</strong>
-              </article>
-              <article>
-                <Crosshair size={20} aria-hidden="true" />
-                <span>Open mouth</span>
-                <strong>Shoot 4 bullets</strong>
-              </article>
-              <article>
-                <MoveHorizontal size={20} aria-hidden="true" />
-                <span>Turn head</span>
-                <strong>Move left/right</strong>
-              </article>
-              <article>
-                <Gauge size={20} aria-hidden="true" />
-                <span>Stay centered</span>
-                <strong>Better tracking</strong>
-              </article>
-            </div>
-
-            <ul className="instruction-list">
-              <li>Destroy obstacles to earn points.</li>
-              <li>Obstacle collisions reduce health based on obstacle type.</li>
-              <li>When health reaches zero, one life is lost.</li>
-            </ul>
-
-            <button type="button" onClick={() => setShowInstructions(false)}>
-              Got it
-            </button>
-          </section>
-        </div>
-      )}
+      <LeaderboardModal
+        open={gameOverModal.open}
+        score={gameOverModal.score}
+        playerName={playerName}
+        leaderboard={leaderboard}
+        status={leaderboardStatus}
+        isSaving={gameOverModal.isSaving}
+        onClose={closeGameOverModal}
+      />
     </main>
   );
 }
