@@ -41,7 +41,18 @@ const INITIAL_GAME = {
 const PHASE_LENGTH = 30;
 const SHOOT_COOLDOWN_SEC = 0.52;
 
-export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleFullscreen, onStop, playerName, onGameOver, resetToken, sensorActions }) {
+export function GamePreviewCanvas({
+  controls,
+  isRunning,
+  isFullscreen,
+  onToggleFullscreen,
+  onStop,
+  playerName,
+  onGameOver,
+  resetToken,
+  sensorActions,
+  leaderboardAction
+}) {
   const canvasRef = useRef(null);
   const controlsRef = useRef(controls);
   const isRunningRef = useRef(isRunning);
@@ -101,6 +112,7 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
         )}
         <div className="game-controls-bar">
           {sensorActions}
+          {leaderboardAction}
           <button
             type="button"
             className={`game-fullscreen-button${isFullscreen ? ' is-exit' : ''}`}
@@ -717,7 +729,7 @@ function drawScorePopups(context, scorePopups) {
 
 function drawHud(context, game, controls, playerName) {
   context.fillStyle = 'rgba(8, 12, 18, 0.62)';
-  roundedRect(context, 20, 18, 330, 188, 8);
+  roundedRect(context, 20, 18, 360, 202, 8);
   context.fill();
 
   context.fillStyle = '#f4f7fb';
@@ -725,7 +737,9 @@ function drawHud(context, game, controls, playerName) {
   context.fillText(`Score ${Math.floor(game.score)}`, 38, 50);
   context.font = '900 12px Inter, sans-serif';
   context.fillStyle = '#6ae6ff';
-  context.fillText(playerName || 'No pilot', 220, 50);
+  context.textAlign = 'right';
+  context.fillText(playerName || 'No pilot', 360, 50);
+  context.textAlign = 'left';
 
   context.font = '800 14px Inter, sans-serif';
   context.fillStyle = '#a3afbf';
@@ -738,7 +752,7 @@ function drawHud(context, game, controls, playerName) {
 
   const barX = 96;
   const barY = 91;
-  const barWidth = 196;
+  const barWidth = 222;
   const barHeight = 18;
   const healthRatio = Math.max(0, game.displayedHealth / game.maxHealth);
 
@@ -757,7 +771,9 @@ function drawHud(context, game, controls, playerName) {
 
   context.fillStyle = '#f4f7fb';
   context.font = '900 12px Inter, sans-serif';
-  context.fillText(`${Math.ceil(game.displayedHealth)}%`, 302, 105);
+  context.textAlign = 'right';
+  context.fillText(`${Math.ceil(game.displayedHealth)}%`, 362, 105);
+  context.textAlign = 'left';
 
   drawTimingBar(context, 38, 126, game.timeAlive);
 
@@ -774,8 +790,10 @@ function drawHud(context, game, controls, playerName) {
   context.fillText(action, 38, 178);
 
   context.fillStyle = '#a3afbf';
-  context.fillText(`Speed ${Math.round(game.speed)}`, 220, 178);
-  context.fillText(`Guns x${getBulletCountForLevel(game.weaponLevel)}`, 220, 156);
+  context.textAlign = 'right';
+  context.fillText(`Guns x${getBulletCountForLevel(game.weaponLevel)}`, 360, 156);
+  context.fillText(`Speed ${Math.round(game.speed)}`, 360, 178);
+  context.textAlign = 'left';
 }
 
 function drawTimingBar(context, x, y, timeAlive) {

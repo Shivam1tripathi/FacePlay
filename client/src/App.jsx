@@ -7,6 +7,7 @@ import {
   Play,
   RotateCcw,
   Smile,
+  Trophy,
 } from "lucide-react";
 import { FaceSensorPanel } from "./components/FaceSensorPanel.jsx";
 import { GamePreviewCanvas } from "./components/GamePreviewCanvas.jsx";
@@ -28,6 +29,7 @@ const USERNAME_STORAGE_KEY =
 function App() {
   const sensor = useFaceControls();
   const fullscreenRef = useRef(null);
+  const [isMobileLayout, setIsMobileLayout] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playerName, setPlayerName] = useState(() =>
     readStoredUsername(USERNAME_STORAGE_KEY),
@@ -36,8 +38,11 @@ function App() {
     () => !readStoredUsername(USERNAME_STORAGE_KEY),
   );
   const [leaderboard, setLeaderboard] = useState([]);
+  const [leaderboardPlayerEntry, setLeaderboardPlayerEntry] = useState(null);
   const [leaderboardStatus, setLeaderboardStatus] =
     useState("Loading scores...");
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [gameOverModal, setGameOverModal] = useState({
     open: false,
     score: 0,
@@ -48,6 +53,10 @@ function App() {
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(document.fullscreenElement === fullscreenRef.current);
+
+      if (!document.fullscreenElement && screen.orientation?.unlock) {
+        screen.orientation.unlock();
+      }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -56,13 +65,28 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 640px)");
+    const updateLayout = () => setIsMobileLayout(mobileQuery.matches);
+
+    updateLayout();
+    mobileQuery.addEventListener("change", updateLayout);
+
+    return () => {
+      mobileQuery.removeEventListener("change", updateLayout);
+    };
+  }, []);
+
+  useEffect(() => {
     fetchLeaderboard()
-      .then((scores) => {
+      .then((data) => {
+        const scores = data.scores ?? [];
         setLeaderboard(scores);
+        setLeaderboardPlayerEntry(data.playerEntry ?? null);
         setLeaderboardStatus(scores.length ? "" : "No scores yet");
       })
       .catch(() => {
         setLeaderboard([]);
+        setLeaderboardPlayerEntry(null);
         setLeaderboardStatus("Leaderboard unavailable");
       });
   }, []);
@@ -113,7 +137,19 @@ function App() {
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
       await fullscreenRef.current?.requestFullscreen();
+      const isMobileViewport = window.matchMedia(
+        "(max-width: 980px) and (pointer: coarse)",
+      ).matches;
+
+      if (isMobileViewport && screen.orientation?.lock) {
+        screen.orientation.lock("landscape").catch(() => {});
+      }
+
       return;
+    }
+
+    if (screen.orientation?.unlock) {
+      screen.orientation.unlock();
     }
 
     await document.exitFullscreen();
@@ -121,11 +157,42 @@ function App() {
 
   const stopGame = async () => {
     if (document.fullscreenElement === fullscreenRef.current) {
+      if (screen.orientation?.unlock) {
+        screen.orientation.unlock();
+      }
+
       await document.exitFullscreen();
     }
 
     sensor.stop();
     setGameOverModal((current) => ({ ...current, open: false }));
+  };
+
+  const refreshLeaderboard = async () => {
+    setLeaderboardLoading(true);
+
+    try {
+      const data = await fetchLeaderboard({
+        username: playerName
+      });
+      const scores = data.scores ?? [];
+      setLeaderboard(scores);
+      setLeaderboardPlayerEntry(data.playerEntry ?? null);
+      setLeaderboardStatus(scores.length ? "" : "No scores yet");
+    } catch {
+      setLeaderboardStatus("Leaderboard unavailable");
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
+
+  const openLeaderboard = async () => {
+    setLeaderboardOpen(true);
+    await refreshLeaderboard();
+  };
+
+  const closeLeaderboard = () => {
+    setLeaderboardOpen(false);
   };
 
   const handleGameOver = async (score) => {
@@ -143,7 +210,7 @@ function App() {
     }
 
     try {
-      const scores =
+      const data =
         finalScore > 0
           ? await submitScore({
               username: playerName,
@@ -151,7 +218,9 @@ function App() {
             })
           : await fetchLeaderboard();
 
+      const scores = data.scores ?? [];
       setLeaderboard(scores);
+      setLeaderboardPlayerEntry(data.playerEntry ?? null);
       setLeaderboardStatus(scores.length ? "" : "No scores yet");
     } catch {
       setLeaderboardStatus("Could not save score");
@@ -223,7 +292,17 @@ function App() {
               playerName={playerName}
               onGameOver={handleGameOver}
               resetToken={gameResetToken}
-              sensorActions={
+              leaderboardAction={
+                <button
+                  type="button"
+                  className="leaderboard-open-button"
+                  onClick={openLeaderboard}
+                >
+                  <Trophy size={16} />
+                  <span>Leaderboard</span>
+                </button>
+              }
+              sensorActions={!isMobileLayout && (
                 <div className="game-sensor-actions">
                   <button
                     type="button"
@@ -253,9 +332,13 @@ function App() {
                     Recenter
                   </button>
                 </div>
-              }
+              )}
             />
-            <FaceSensorPanel sensor={sensor} playerName={playerName} compact />
+            <FaceSensorPanel
+              sensor={sensor}
+              playerName={playerName}
+              compact={!isMobileLayout}
+            />
           </div>
 
           <div className="metrics-grid">
@@ -295,36 +378,27 @@ function App() {
             />
           </div>
 
-          <section className="leaderboard-panel" aria-label="Leaderboard">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Leaderboard</p>
-                <h2>Top pilots</h2>
-              </div>
-            </div>
-            <ol className="leaderboard-list">
-              {leaderboard.length > 0 ? (
-                leaderboard.map((entry, index) => (
-                  <li key={`${entry.name}-${entry.score}-${entry.date}`}>
-                    <span>#{index + 1}</span>
-                    <strong>{entry.name}</strong>
-                    <em>{entry.score}</em>
-                  </li>
-                ))
-              ) : (
-                <li className="empty-score">{leaderboardStatus}</li>
-              )}
-            </ol>
-          </section>
         </aside>
 
         <LeaderboardModal
+          open={leaderboardOpen}
+          variant="leaderboard"
+          leaderboard={leaderboard}
+          playerEntry={leaderboardPlayerEntry}
+          status={leaderboardStatus}
+          isLoading={leaderboardLoading}
+          onClose={closeLeaderboard}
+        />
+
+        <LeaderboardModal
           open={gameOverModal.open}
+          variant="gameOver"
           score={gameOverModal.score}
           playerName={playerName}
           leaderboard={leaderboard}
+          playerEntry={leaderboardPlayerEntry}
           status={leaderboardStatus}
-          isSaving={gameOverModal.isSaving}
+          isLoading={gameOverModal.isSaving}
           onRestart={restartGame}
           onStop={stopGame}
           onClose={closeGameOverModal}

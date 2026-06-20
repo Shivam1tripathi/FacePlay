@@ -94,6 +94,18 @@ p {
   gap: 10px;
 }
 
+.leaderboard-open-button {
+  background: rgba(106, 230, 255, 0.12);
+  border: 1px solid rgba(106, 230, 255, 0.28);
+  color: var(--cyan);
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.leaderboard-open-button span {
+  display: inline;
+}
+
 .brand-lockup {
   align-items: center;
   display: inline-flex;
@@ -747,6 +759,25 @@ p {
   width: min(100%, 520px);
 }
 
+.leaderboard-modal--board {
+  max-width: 500px;
+}
+
+.leaderboard-modal-topbar {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.leaderboard-modal-close {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+
 .leaderboard-modal h2 {
   margin-bottom: 10px;
 }
@@ -776,6 +807,42 @@ p {
   max-height: 280px;
   overflow: auto;
   padding-inline: 0;
+}
+
+.leaderboard-modal-section {
+  margin-bottom: 14px;
+}
+
+.leaderboard-modal-section-title {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.8rem;
+  font-weight: 900;
+  gap: 6px;
+  letter-spacing: 0.02em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.leaderboard-modal-rank {
+  margin-bottom: 16px;
+}
+
+.leaderboard-modal-rank-row {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(66, 211, 146, 0.22);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 42px 1fr auto;
+  min-height: 46px;
+  padding: 10px 12px;
+}
+
+.leaderboard-modal-rank-row.is-muted {
+  color: var(--muted);
 }
 
 .leaderboard-modal-actions {
@@ -1083,30 +1150,29 @@ p {
     top: 14px;
     width: clamp(120px, 24vw, 180px);
   }
-
 }
 
 @media (max-width: 640px) {
   .app-shell {
-    padding: 12px;
+    padding: 10px;
   }
 
   .hero-band {
-    padding-bottom: 12px;
+    padding-bottom: 10px;
   }
 
   .top-nav {
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
 
   .brand-logo {
-    height: 42px;
-    width: 42px;
+    height: 40px;
+    width: 40px;
   }
 
   .brand-lockup {
-    font-size: 0.98rem;
+    font-size: 0.94rem;
   }
 
   .brand-lockup small {
@@ -1115,8 +1181,18 @@ p {
 
   .nav-status {
     flex: 1;
+    gap: 8px;
     justify-content: flex-end;
     min-width: 0;
+  }
+
+  .leaderboard-open-button {
+    min-height: 36px;
+    padding: 0 10px;
+  }
+
+  .leaderboard-open-button span {
+    display: none;
   }
 
   .status-pill,
@@ -1130,13 +1206,13 @@ p {
   }
 
   .dashboard-grid {
-    gap: 12px;
+    gap: 10px;
   }
 
   .sensor-panel,
   .preview-panel,
   .leaderboard-panel {
-    border-radius: 8px;
+    border-radius: 14px;
   }
 
   .sensor-panel {
@@ -1146,13 +1222,18 @@ p {
 
   .sensor-panel--overlay {
     bottom: auto;
+    background: rgba(10, 14, 22, 0.72);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
     gap: 6px;
     left: auto;
-    padding: 0;
+    padding: 8px;
     right: 8px;
-    top: 66px;
+    top: 56px;
     transform: none;
-    width: min(22vw, 88px);
+    width: min(46vw, 176px);
+    z-index: 5;
   }
 
   .panel-header {
@@ -1164,26 +1245,26 @@ p {
   }
 
   .panel-header.compact {
-    align-items: stretch;
-    display: grid;
-    grid-template-columns: repeat(4, 44px);
-    justify-content: start;
-    padding: 10px;
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 12px 8px;
   }
 
   .panel-header.compact .game-controls-bar {
-    display: contents;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-left: auto;
   }
 
   .panel-header.compact > div:first-child {
-    grid-column: 1 / -1;
     min-width: 0;
   }
 
   .dashboard-grid:fullscreen .panel-header.compact {
     align-items: center;
     display: flex;
-    grid-template-columns: unset;
     justify-content: center;
     max-width: calc(100vw - 24px);
     padding: 8px 10px;
@@ -1198,7 +1279,8 @@ p {
   }
 
   .game-fullscreen-button,
-  .stop-game-button {
+  .stop-game-button,
+  .leaderboard-open-button {
     font-size: 0;
     gap: 0;
     min-height: 44px;
@@ -1208,31 +1290,33 @@ p {
   }
 
   .game-fullscreen-button svg,
-  .stop-game-button svg {
+  .stop-game-button svg,
+  .leaderboard-open-button svg {
     flex: 0 0 auto;
   }
 
   .game-sensor-actions {
-    display: contents;
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  .game-sensor-actions button {
+    background: rgba(255, 255, 255, 0.08);
   }
 
   .sensor-start-button,
   .sensor-recenter-button {
-    font-size: 0;
-    gap: 0;
-    min-height: 44px;
-    min-width: 44px;
-    overflow: hidden;
-    padding: 0;
-  }
-
-  .sensor-start-button svg,
-  .sensor-recenter-button svg {
-    flex: 0 0 auto;
+    font-size: 0.82rem;
+    gap: 8px;
+    min-height: 46px;
+    min-width: 0;
+    overflow: visible;
+    padding: 0 14px;
   }
 
   .video-stage {
-    aspect-ratio: 16 / 8.6;
+    aspect-ratio: 4 / 3;
+    border-radius: 12px;
   }
 
   .metrics-grid {
@@ -1243,8 +1327,8 @@ p {
   .metric-card {
     align-items: center;
     gap: 8px;
-    min-height: 54px;
-    padding: 8px;
+    min-height: 58px;
+    padding: 9px;
   }
 
   .metric-icon {
@@ -1301,12 +1385,16 @@ p {
 
   .privacy-line {
     align-items: flex-start;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
+  }
+
+  .leaderboard-panel {
+    display: none;
   }
 
   .calibration-chip {
     bottom: 10px;
-    font-size: 0.76rem;
+    font-size: 0.75rem;
     padding: 7px 10px;
   }
 
@@ -1334,6 +1422,20 @@ p {
   .leaderboard-list span,
   .leaderboard-list em {
     font-size: 0.78rem;
+  }
+
+  .leaderboard-modal {
+    padding: 18px;
+  }
+
+  .leaderboard-modal-actions {
+    flex-direction: column;
+  }
+
+  .leaderboard-modal-rank-row {
+    grid-template-columns: 34px 1fr auto;
+    min-height: 42px;
+    padding: 8px 10px;
   }
 
   .login-backdrop {
@@ -1416,14 +1518,14 @@ p {
   }
 
   .sensor-panel--overlay {
-    top: 64px;
-    width: 76px;
+    top: 52px;
+    width: min(58vw, 190px);
   }
 
   .dashboard-grid:fullscreen .sensor-panel--overlay {
     right: 12px;
-    top: 72px;
-    width: clamp(108px, 28vw, 150px);
+    top: 56px;
+    width: clamp(130px, 38vw, 190px);
   }
 
   .metrics-grid {
@@ -1432,8 +1534,8 @@ p {
   }
 
   .metric-card {
-    min-height: 50px;
-    padding: 7px;
+    min-height: 54px;
+    padding: 8px;
   }
 
   .metric-icon {
@@ -1476,5 +1578,48 @@ p {
 
   .dashboard-grid:fullscreen .sensor-panel:not(.sensor-panel--overlay) {
     display: none;
+  }
+}
+
+@media (max-width: 980px) and (orientation: landscape) {
+  .app-shell {
+    max-width: none;
+  }
+
+  .dashboard-grid {
+    gap: 10px;
+  }
+
+  .dashboard-grid:fullscreen {
+    padding: 0;
+  }
+
+  .dashboard-grid:fullscreen .sensor-panel--overlay {
+    display: flex;
+    right: 12px;
+    top: 10px;
+    width: clamp(120px, 30vw, 180px);
+  }
+
+  .dashboard-grid:fullscreen .preview-panel {
+    min-height: 100vh;
+  }
+
+  .dashboard-grid:fullscreen .preview-panel .panel-header {
+    max-width: calc(100vw - 20px);
+    top: 10px;
+  }
+
+  .metrics-grid,
+  .leaderboard-panel {
+    display: none;
+  }
+
+  .sensor-panel {
+    order: 2;
+  }
+
+  .control-column {
+    order: 1;
   }
 }
