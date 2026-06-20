@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Loader2, RotateCcw, Square } from "lucide-react";
 
 export function LeaderboardModal({
   open,
@@ -7,6 +7,8 @@ export function LeaderboardModal({
   leaderboard,
   status,
   isSaving,
+  onRestart,
+  onStop,
   onClose,
 }) {
   if (!open) {
@@ -64,9 +66,16 @@ export function LeaderboardModal({
           )}
         </ol>
 
-        <button type="button" className="leaderboard-modal-continue" onClick={onClose}>
-          Continue
-        </button>
+        <div className="leaderboard-modal-actions">
+          <button type="button" className="leaderboard-modal-stop" onClick={onStop}>
+            <Square size={16} />
+            Stop game
+          </button>
+          <button type="button" className="leaderboard-modal-continue" onClick={onRestart}>
+            <RotateCcw size={16} />
+            Restart game
+          </button>
+        </div>
       </div>
     </div>
   );

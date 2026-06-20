@@ -43,6 +43,7 @@ function App() {
     score: 0,
     isSaving: false,
   });
+  const [gameResetToken, setGameResetToken] = useState(0);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -118,6 +119,15 @@ function App() {
     await document.exitFullscreen();
   };
 
+  const stopGame = async () => {
+    if (document.fullscreenElement === fullscreenRef.current) {
+      await document.exitFullscreen();
+    }
+
+    sensor.stop();
+    setGameOverModal((current) => ({ ...current, open: false }));
+  };
+
   const handleGameOver = async (score) => {
     const finalScore = Math.floor(score);
 
@@ -152,6 +162,11 @@ function App() {
 
   const closeGameOverModal = () => {
     setGameOverModal((current) => ({ ...current, open: false }));
+  };
+
+  const restartGame = () => {
+    setGameOverModal((current) => ({ ...current, open: false }));
+    setGameResetToken((current) => current + 1);
   };
 
   return (
@@ -204,9 +219,10 @@ function App() {
               isRunning={sensor.isRunning}
               isFullscreen={isFullscreen}
               onToggleFullscreen={toggleFullscreen}
-              onStop={sensor.stop}
+              onStop={stopGame}
               playerName={playerName}
               onGameOver={handleGameOver}
+              resetToken={gameResetToken}
               sensorActions={
                 <div className="game-sensor-actions">
                   <button
@@ -301,17 +317,19 @@ function App() {
             </ol>
           </section>
         </aside>
-      </section>
 
-      <LeaderboardModal
-        open={gameOverModal.open}
-        score={gameOverModal.score}
-        playerName={playerName}
-        leaderboard={leaderboard}
-        status={leaderboardStatus}
-        isSaving={gameOverModal.isSaving}
-        onClose={closeGameOverModal}
-      />
+        <LeaderboardModal
+          open={gameOverModal.open}
+          score={gameOverModal.score}
+          playerName={playerName}
+          leaderboard={leaderboard}
+          status={leaderboardStatus}
+          isSaving={gameOverModal.isSaving}
+          onRestart={restartGame}
+          onStop={stopGame}
+          onClose={closeGameOverModal}
+        />
+      </section>
     </main>
   );
 }

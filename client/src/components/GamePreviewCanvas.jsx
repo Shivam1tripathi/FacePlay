@@ -41,7 +41,7 @@ const INITIAL_GAME = {
 const PHASE_LENGTH = 30;
 const SHOOT_COOLDOWN_SEC = 0.52;
 
-export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleFullscreen, onStop, playerName, onGameOver, sensorActions }) {
+export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleFullscreen, onStop, playerName, onGameOver, resetToken, sensorActions }) {
   const canvasRef = useRef(null);
   const controlsRef = useRef(controls);
   const isRunningRef = useRef(isRunning);
@@ -64,6 +64,11 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
       smileLatchRef.current = false;
     }
   }, [isRunning]);
+
+  useEffect(() => {
+    gameRef.current = cloneGame();
+    smileLatchRef.current = false;
+  }, [resetToken]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -117,9 +122,6 @@ export function GamePreviewCanvas({ controls, isRunning, isFullscreen, onToggleF
 
 function updateGame(game, controls, smileLatchRef, onGameOverRef, delta) {
   if (game.gameOver) {
-    if (controls.isSmiling || controls.didShoot) {
-      Object.assign(game, cloneGame());
-    }
     return;
   }
 
@@ -815,10 +817,10 @@ function drawGameOver(context, canvas) {
   context.fillStyle = '#f4f7fb';
   context.textAlign = 'center';
   context.font = '900 42px Inter, sans-serif';
-  context.fillText('Signal lost', canvas.width / 2, canvas.height / 2 - 20);
+  context.fillText('Game paused', canvas.width / 2, canvas.height / 2 - 20);
   context.font = '800 18px Inter, sans-serif';
   context.fillStyle = '#a3afbf';
-  context.fillText('Smile or open mouth to restart', canvas.width / 2, canvas.height / 2 + 22);
+  context.fillText('Leaderboard is open. Use Restart to play again.', canvas.width / 2, canvas.height / 2 + 22);
   context.textAlign = 'left';
 }
 

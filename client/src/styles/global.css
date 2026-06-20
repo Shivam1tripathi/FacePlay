@@ -733,7 +733,7 @@ p {
   justify-content: center;
   padding: 20px;
   position: fixed;
-  z-index: 35;
+  z-index: 80;
 }
 
 .leaderboard-modal {
@@ -778,10 +778,24 @@ p {
   padding-inline: 0;
 }
 
+.leaderboard-modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.leaderboard-modal-stop,
+.leaderboard-modal-continue {
+  width: 100%;
+}
+
+.leaderboard-modal-stop {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
 .leaderboard-modal-continue {
   background: linear-gradient(135deg, var(--accent), var(--cyan));
   color: #07120d;
-  width: 100%;
 }
 
 .login-backdrop {
