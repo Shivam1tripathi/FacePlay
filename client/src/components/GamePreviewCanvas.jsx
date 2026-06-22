@@ -51,7 +51,8 @@ export function GamePreviewCanvas({
   onGameOver,
   resetToken,
   sensorActions,
-  leaderboardAction
+  leaderboardAction,
+  showControls = true
 }) {
   const canvasRef = useRef(null);
   const controlsRef = useRef(controls);
@@ -103,30 +104,32 @@ export function GamePreviewCanvas({
 
   return (
     <section className="preview-panel" aria-label="FacePilot runner shooter preview">
-      <div className={`panel-header compact${isFullscreen ? ' panel-header--fullscreen' : ''}`}>
-        {!isFullscreen && (
-          <div>
-            <p className="eyebrow">Game test</p>
-            <h2>FacePilot arena</h2>
+      {showControls && (
+        <div className={`panel-header compact${isFullscreen ? ' panel-header--fullscreen' : ''}`}>
+          {!isFullscreen && (
+            <div>
+              <p className="eyebrow">Game test</p>
+              <h2>FacePilot arena</h2>
+            </div>
+          )}
+          <div className="game-controls-bar">
+            {sensorActions}
+            {leaderboardAction}
+            <button
+              type="button"
+              className={`game-fullscreen-button${isFullscreen ? ' is-exit' : ''}`}
+              onClick={onToggleFullscreen}
+            >
+              {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              {isFullscreen ? 'Exit fullscreen' : 'Full screen'}
+            </button>
+            <button type="button" className="stop-game-button" onClick={onStop} disabled={!isRunning}>
+              <Square size={16} />
+              Stop game
+            </button>
           </div>
-        )}
-        <div className="game-controls-bar">
-          {sensorActions}
-          {leaderboardAction}
-          <button
-            type="button"
-            className={`game-fullscreen-button${isFullscreen ? ' is-exit' : ''}`}
-            onClick={onToggleFullscreen}
-          >
-            {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-            {isFullscreen ? 'Exit fullscreen' : 'Full screen'}
-          </button>
-          <button type="button" className="stop-game-button" onClick={onStop} disabled={!isRunning}>
-            <Square size={16} />
-            Stop game
-          </button>
         </div>
-      </div>
+      )}
       <canvas ref={canvasRef} className="game-preview" width={WORLD.width} height={WORLD.height} />
     </section>
   );
