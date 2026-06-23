@@ -70,7 +70,7 @@ export function LeaderboardModal({
           <p className="leaderboard-modal-section-title">Top 5</p>
           <ol className="leaderboard-list leaderboard-modal-list">
             {leaderboard.length > 0 ? (
-              leaderboard.map((entry) => {
+              leaderboard.map((entry, index) => {
                 const isCurrentPlayer =
                   playerName &&
                   (entry.username === playerName || entry.name === playerName);
@@ -80,7 +80,7 @@ export function LeaderboardModal({
                     key={`${entry.name}-${entry.score}-${entry.rank ?? entry.date}`}
                     className={isCurrentPlayer ? "is-current-player" : undefined}
                   >
-                    <span>#{entry.rank ?? "?"}</span>
+                    <span>#{entry.rank ?? index + 1}</span>
                     <strong>{entry.name}</strong>
                     <em>{entry.score}</em>
                   </li>
@@ -99,7 +99,7 @@ export function LeaderboardModal({
           </p>
           {playerEntry ? (
             <div className="leaderboard-modal-rank-row">
-              <span>#{playerEntry.rank ?? "?"}</span>
+              <span>#{playerEntry.rank ?? "--"}</span>
               <strong>{playerEntry.name}</strong>
               <em>{playerEntry.score}</em>
             </div>
@@ -134,3 +134,4 @@ export function LeaderboardModal({
     </div>
   );
 }
+

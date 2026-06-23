@@ -59,3 +59,4 @@ function normalizeScore(entry) {
     date: entry.createdAt || entry.date || new Date().toISOString()
   };
 }
+
