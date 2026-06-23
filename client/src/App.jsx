@@ -4,36 +4,70 @@ import {
   Gauge,
   Loader2,
   MoveHorizontal,
+  Minimize2,
   Play,
+  Maximize2,
   RotateCcw,
   Smile,
+  Trophy,
+  Square,
 } from "lucide-react";
 import { FaceSensorPanel } from "./components/FaceSensorPanel.jsx";
 import { GamePreviewCanvas } from "./components/GamePreviewCanvas.jsx";
-import { LoginModal } from "./components/LoginModal.jsx";
 import { MetricCard } from "./components/MetricCard.jsx";
+import { LeaderboardModal } from "./components/LeaderboardModal.jsx";
+import { UsernameMenu } from "./components/UsernameMenu.jsx";
 import { useFaceControls } from "./hooks/useFaceControls.js";
 import { fetchLeaderboard, submitScore } from "./services/leaderboardApi.js";
-import { startUserSession } from "./services/userApi.js";
+import { fetchUsernamePrefixes } from "./services/userApi.js";
+import {
+  generateAnonymousUsername,
+  readStoredUsername,
+  storeUsername,
+} from "./services/usernameGenerator.js";
+
+const USERNAME_STORAGE_KEY =
+  import.meta.env.VITE_USERNAME_STORAGE_KEY || "facepilot.username";
 
 function App() {
   const sensor = useFaceControls();
   const fullscreenRef = useRef(null);
+  const [isMobileLayout, setIsMobileLayout] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [credentials, setCredentials] = useState({
-    username: "",
-    password: "",
-  });
-  const [playerName, setPlayerName] = useState("");
-  const [authStatus, setAuthStatus] = useState("");
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [cameraPermission, setCameraPermission] = useState("unknown");
+  const [playerName, setPlayerName] = useState(() =>
+    readStoredUsername(USERNAME_STORAGE_KEY),
+  );
+  const [isUsernameLoading, setIsUsernameLoading] = useState(
+    () => !readStoredUsername(USERNAME_STORAGE_KEY),
+  );
   const [leaderboard, setLeaderboard] = useState([]);
+  const [leaderboardPlayerEntry, setLeaderboardPlayerEntry] = useState(null);
   const [leaderboardStatus, setLeaderboardStatus] =
     useState("Loading scores...");
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [gameOverModal, setGameOverModal] = useState({
+    open: false,
+    score: 0,
+    isSaving: false,
+  });
+  const [gameResetToken, setGameResetToken] = useState(0);
+  const mobileStep = getMobileStep({
+    isMobileLayout,
+    leaderboardOpen,
+    gameOverModal,
+    sensor,
+    cameraPermission,
+  });
 
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(document.fullscreenElement === fullscreenRef.current);
+
+      if (!document.fullscreenElement && screen.orientation?.unlock) {
+        screen.orientation.unlock();
+      }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
@@ -42,80 +76,480 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 980px), (pointer: coarse)");
+    const updateLayout = () => setIsMobileLayout(mobileQuery.matches);
+
+    updateLayout();
+    mobileQuery.addEventListener("change", updateLayout);
+
+    return () => {
+      mobileQuery.removeEventListener("change", updateLayout);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const updatePermission = async () => {
+      if (!navigator.permissions?.query) {
+        return;
+      }
+
+      try {
+        const permission = await navigator.permissions.query({ name: "camera" });
+
+        if (!active) {
+          return;
+        }
+
+        setCameraPermission(permission.state);
+        permission.onchange = () => {
+          setCameraPermission(permission.state);
+        };
+      } catch {
+        if (active) {
+          setCameraPermission("unknown");
+        }
+      }
+    };
+
+    updatePermission();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     fetchLeaderboard()
-      .then((scores) => {
+      .then((data) => {
+        const scores = data.scores ?? [];
         setLeaderboard(scores);
+        setLeaderboardPlayerEntry(data.playerEntry ?? null);
         setLeaderboardStatus(scores.length ? "" : "No scores yet");
       })
       .catch(() => {
         setLeaderboard([]);
+        setLeaderboardPlayerEntry(null);
         setLeaderboardStatus("Leaderboard unavailable");
       });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveIdentity = async () => {
+      const storedUsername = readStoredUsername(USERNAME_STORAGE_KEY);
+
+      if (storedUsername) {
+        return;
+      }
+
+      try {
+        const prefixes = await fetchUsernamePrefixes();
+        const nextUsername = generateAnonymousUsername(prefixes);
+
+        if (cancelled) {
+          return;
+        }
+
+        storeUsername(USERNAME_STORAGE_KEY, nextUsername);
+        setPlayerName(nextUsername);
+      } catch {
+        const fallbackUsername = generateAnonymousUsername();
+
+        if (cancelled) {
+          return;
+        }
+
+        storeUsername(USERNAME_STORAGE_KEY, fallbackUsername);
+        setPlayerName(fallbackUsername);
+      } finally {
+        if (!cancelled) {
+          setIsUsernameLoading(false);
+        }
+      }
+    };
+
+    resolveIdentity();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const toggleFullscreen = async () => {
     if (!document.fullscreenElement) {
       await fullscreenRef.current?.requestFullscreen();
+      const isMobileViewport = window.matchMedia(
+        "(max-width: 980px) and (pointer: coarse)",
+      ).matches;
+
+      if (isMobileViewport && screen.orientation?.lock) {
+        screen.orientation.lock("landscape").catch(() => {});
+      }
+
       return;
+    }
+
+    if (screen.orientation?.unlock) {
+      screen.orientation.unlock();
     }
 
     await document.exitFullscreen();
   };
 
-  const confirmPlayerName = async (event) => {
-    event.preventDefault();
-    const username = credentials.username.trim().slice(0, 18);
-    const password = credentials.password;
+  const stopGame = async () => {
+    if (document.fullscreenElement === fullscreenRef.current) {
+      if (screen.orientation?.unlock) {
+        screen.orientation.unlock();
+      }
 
-    if (!username || password.length < 4) {
-      setAuthStatus("Enter username and 4+ character password");
-      return;
+      await document.exitFullscreen();
     }
 
-    try {
-      setAuthStatus("Checking user...");
-      const user = await startUserSession({ username, password });
-      setPlayerName(user.displayName || user.username);
-      setAuthStatus("User ready");
-      setShowInstructions(true);
-    } catch (error) {
-      setPlayerName("");
-      setAuthStatus(error.message);
-    }
+    sensor.stop();
+    setGameOverModal((current) => ({ ...current, open: false }));
   };
 
-  const resetPlayerName = () => {
-    if (sensor.isRunning) return;
-    setPlayerName("");
-    setCredentials({ username: "", password: "" });
-    setAuthStatus("");
-    setShowInstructions(false);
-  };
-
-  const saveScore = async (score) => {
-    if (
-      !playerName ||
-      !credentials.username ||
-      !credentials.password ||
-      score <= 0
-    )
-      return;
+  const refreshLeaderboard = async () => {
+    setLeaderboardLoading(true);
 
     try {
-      const scores = await submitScore({
-        username: credentials.username,
-        password: credentials.password,
-        score: Math.floor(score),
+      const data = await fetchLeaderboard({
+        username: playerName
       });
+      const scores = data.scores ?? [];
       setLeaderboard(scores);
+      setLeaderboardPlayerEntry(data.playerEntry ?? null);
+      setLeaderboardStatus(scores.length ? "" : "No scores yet");
+    } catch {
+      setLeaderboardStatus("Leaderboard unavailable");
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  };
+
+  const openLeaderboard = async () => {
+    setLeaderboardOpen(true);
+    await refreshLeaderboard();
+  };
+
+  const closeLeaderboard = () => {
+    setLeaderboardOpen(false);
+  };
+
+  const handleGameOver = async (score) => {
+    const finalScore = Math.floor(score);
+
+    setGameOverModal({
+      open: true,
+      score: finalScore,
+      isSaving: Boolean(playerName && finalScore > 0),
+    });
+
+    if (!playerName) {
+      setGameOverModal((current) => ({ ...current, isSaving: false }));
+      return;
+    }
+
+    try {
+      const data =
+        finalScore > 0
+          ? await submitScore({
+              username: playerName,
+              score: finalScore,
+            })
+          : await fetchLeaderboard();
+
+      const scores = data.scores ?? [];
+      setLeaderboard(scores);
+      setLeaderboardPlayerEntry(data.playerEntry ?? null);
       setLeaderboardStatus(scores.length ? "" : "No scores yet");
     } catch {
       setLeaderboardStatus("Could not save score");
+    } finally {
+      setGameOverModal((current) => ({ ...current, isSaving: false }));
     }
   };
 
+  const closeGameOverModal = () => {
+    setGameOverModal((current) => ({ ...current, open: false }));
+  };
+
+  const restartGame = () => {
+    setGameOverModal((current) => ({ ...current, open: false }));
+    setGameResetToken((current) => current + 1);
+  };
+
+  const renderMobileScreen = () => {
+    const statusText = sensor.error || sensor.status;
+
+    if (gameOverModal.open) {
+      return (
+        <div className="mobile-screen mobile-screen--gameover">
+          <div className="mobile-screen-topline">
+            <span className="mobile-screen-brand">FacePilot</span>
+            <span className="mobile-screen-badge mobile-screen-badge--danger">
+              Game over
+            </span>
+          </div>
+
+          <div className="mobile-screen-hero mobile-screen-hero--danger">
+            <h1>Game over</h1>
+            <p>All lives lost</p>
+          </div>
+
+          <p className="mobile-screen-status mobile-screen-status--danger">{statusText}</p>
+
+          <div className="mobile-score-card">
+            <span>Your score</span>
+            <strong>{gameOverModal.score.toLocaleString()}</strong>
+            <em>{leaderboardPlayerEntry ? `Rank #${leaderboardPlayerEntry.rank ?? "?"} globally` : "Leaderboard updated"}</em>
+          </div>
+
+          <div className="mobile-mini-grid">
+            <div>
+              <span>Shots</span>
+              <strong>{Math.max(0, Math.round(gameOverModal.score / 120))}</strong>
+            </div>
+            <div>
+              <span>Rank</span>
+              <strong>{leaderboardPlayerEntry?.rank ?? "--"}</strong>
+            </div>
+            <div>
+              <span>Time</span>
+              <strong>{sensor.controls.faceDetected ? "Live" : "0:00"}</strong>
+            </div>
+          </div>
+
+          <div className="mobile-screen-actions">
+            <button type="button" className="mobile-primary-button" onClick={restartGame}>
+              <RotateCcw size={16} />
+              Play again
+            </button>
+            <button type="button" className="mobile-secondary-button" onClick={openLeaderboard}>
+              <Trophy size={16} />
+              Leaderboard
+            </button>
+            <button type="button" className="mobile-tertiary-button" onClick={stopGame}>
+              <Square size={16} />
+              Stop game
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (mobileStep === "permission") {
+      return (
+        <div className="mobile-screen">
+          <div className="mobile-screen-topline">
+            <span className="mobile-screen-brand">FacePilot</span>
+            <span className="mobile-screen-badge">Arena</span>
+          </div>
+
+          <div className="mobile-screen-hero">
+            <div className="mobile-hero-icon mobile-hero-icon--ring" />
+            <h1>Camera access needed</h1>
+            <p>FacePilot uses your webcam only in the browser. No video leaves your device.</p>
+          </div>
+
+          <p className="mobile-screen-status mobile-screen-status--warn">{statusText}</p>
+
+          <div className="mobile-permission-box">
+            <span>Camera permission is required to continue</span>
+          </div>
+
+          <div className="mobile-screen-actions">
+            <button
+              type="button"
+              className="mobile-primary-button"
+              onClick={sensor.start}
+              disabled={isUsernameLoading || !playerName || sensor.isBooting || sensor.isRunning}
+            >
+              <Play size={16} />
+              Allow
+            </button>
+            <button type="button" className="mobile-secondary-button" onClick={stopGame}>
+              Not now
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (mobileStep === "calibrate") {
+      return (
+        <div className="mobile-screen">
+          <div className="mobile-screen-topline">
+            <span className="mobile-screen-brand">FacePilot</span>
+            <span className="mobile-screen-badge mobile-screen-badge--live">Live</span>
+          </div>
+
+          <div className="mobile-screen-hero mobile-screen-hero--compact">
+            <h1>Calibrating baseline...</h1>
+            <p>Keep face centred, look neutral</p>
+          </div>
+
+          <p className="mobile-screen-status">{statusText}</p>
+
+          <div className="mobile-mini-grid mobile-mini-grid--calibrate">
+            <div>
+              <span>Smile neutral</span>
+              <strong>{sensor.controls.smileScore.toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>Mouth closed</span>
+              <strong>{sensor.controls.mouthOpenRatio.toFixed(2)}</strong>
+            </div>
+            <div>
+              <span>Head centre</span>
+              <strong>{sensor.controls.headOffset.toFixed(1)}</strong>
+            </div>
+            <div>
+              <span>Models</span>
+              <strong>{sensor.controls.faceDetected ? "Ready" : "Loading"}</strong>
+            </div>
+          </div>
+
+          <div className="mobile-screen-actions">
+            <button
+              type="button"
+              className="mobile-secondary-button"
+              onClick={sensor.recalibrate}
+              disabled={!sensor.isRunning}
+            >
+              <RotateCcw size={16} />
+              Recenter
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (mobileStep === "playing") {
+      return (
+        <div className={`mobile-screen mobile-screen--game${isFullscreen ? " is-fullscreen" : ""}`}>
+          <div className="mobile-screen-topline">
+            <span className="mobile-screen-brand">FacePilot</span>
+            <span className="mobile-screen-badge mobile-screen-badge--live">Live</span>
+          </div>
+
+          <p className="mobile-screen-status">{statusText}</p>
+
+          <div className="mobile-game-toolbar" role="toolbar" aria-label="Game controls">
+            <button type="button" className="mobile-toolbar-button" onClick={openLeaderboard}>
+              <Trophy size={16} />
+              Leaderboard
+            </button>
+            <button type="button" className="mobile-toolbar-button" onClick={toggleFullscreen}>
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              {isFullscreen ? "Exit fullscreen" : "Full screen"}
+            </button>
+            <button type="button" className="mobile-toolbar-button mobile-toolbar-button--danger" onClick={stopGame}>
+              <Square size={16} />
+              Stop game
+            </button>
+          </div>
+
+          <div className="mobile-game-stage">
+            <GamePreviewCanvas
+              controls={sensor.controls}
+              isRunning={sensor.isRunning}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={toggleFullscreen}
+              onStop={stopGame}
+              playerName={playerName}
+              onGameOver={handleGameOver}
+              resetToken={gameResetToken}
+              leaderboardAction={null}
+              sensorActions={null}
+              showControls={false}
+            />
+          </div>
+
+        </div>
+      );
+    }
+
+    return (
+        <div className="mobile-screen">
+          <div className="mobile-screen-topline">
+            <span className="mobile-screen-brand">FacePilot</span>
+            <span className="mobile-screen-badge">Arena</span>
+          </div>
+
+          <div className="mobile-screen-hero">
+            <div className="mobile-logo-shell">
+              <img src="/facepilot-logo.svg" alt="" />
+            </div>
+            <h1>FacePilot</h1>
+            <p>Control a runner-shooter using your face</p>
+          </div>
+
+        <p className="mobile-screen-status">{statusText}</p>
+
+        <div className="mobile-user-chip">
+          {isUsernameLoading ? (
+            <span className="mobile-loading-row">
+              <Loader2 size={16} className="spin" aria-hidden="true" />
+              Assigning pilot...
+            </span>
+          ) : (
+            <span>{playerName || "anonymous"}</span>
+          )}
+        </div>
+
+        <div className="mobile-screen-actions">
+          <button
+            type="button"
+            className="mobile-primary-button"
+            onClick={sensor.start}
+            disabled={isUsernameLoading || !playerName || sensor.isBooting || sensor.isRunning}
+          >
+            <Play size={16} />
+            {sensor.isBooting ? "Starting..." : "Play now"}
+          </button>
+          <button type="button" className="mobile-secondary-button" onClick={openLeaderboard}>
+            <Trophy size={16} />
+            Leaderboard
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  if (isMobileLayout) {
+    return (
+      <div className="app-frame app-frame--mobile">
+        <main className="mobile-app-shell">
+          <section ref={fullscreenRef} className="mobile-phone-frame" aria-label="FacePilot mobile flow">
+              <div
+                className={`mobile-camera-stage${mobileStep === "calibrate" ? " is-visible" : " is-hidden"}`}
+                aria-hidden={mobileStep !== "calibrate"}
+              >
+                <FaceSensorPanel sensor={sensor} playerName={playerName} compact />
+              </div>
+              {renderMobileScreen()}
+          </section>
+        </main>
+        <LeaderboardModal
+          open={leaderboardOpen}
+          variant="leaderboard"
+          leaderboard={leaderboard}
+          playerEntry={leaderboardPlayerEntry}
+          status={leaderboardStatus}
+          isLoading={leaderboardLoading}
+          onClose={closeLeaderboard}
+        />
+      </div>
+    );
+  }
+
   return (
-    <main className="app-shell">
+    <div className="app-frame">
+      <main className="app-shell">
       <section className="hero-band">
         <nav className="top-nav" aria-label="FacePilot status">
           <div className="brand-lockup">
@@ -130,15 +564,23 @@ function App() {
             </span>
           </div>
           <div className="nav-status">
-            {playerName && (
-              <button
-                type="button"
-                className="user-chip"
-                onClick={resetPlayerName}
-                disabled={sensor.isRunning}
+            {isUsernameLoading ? (
+              <span
+                className="username-loading-chip user-chip"
+                aria-live="polite"
+                aria-busy="true"
               >
-                {playerName}
-              </button>
+                <Loader2 size={16} className="spin" aria-hidden="true" />
+                Assigning pilot...
+              </span>
+            ) : (
+              playerName && (
+                <UsernameMenu
+                  username={playerName}
+                  storageKey={USERNAME_STORAGE_KEY}
+                  onUsernameChange={setPlayerName}
+                />
+              )
             )}
           </div>
         </nav>
@@ -156,24 +598,34 @@ function App() {
               isRunning={sensor.isRunning}
               isFullscreen={isFullscreen}
               onToggleFullscreen={toggleFullscreen}
-              onStop={sensor.stop}
+              onStop={stopGame}
               playerName={playerName}
-              onGameOver={saveScore}
-              sensorActions={
+              onGameOver={handleGameOver}
+              resetToken={gameResetToken}
+              leaderboardAction={
+                <button
+                  type="button"
+                  className="leaderboard-open-button"
+                  onClick={openLeaderboard}
+                >
+                  <Trophy size={16} />
+                  <span>Leaderboard</span>
+                </button>
+              }
+              sensorActions={!isMobileLayout && (
                 <div className="game-sensor-actions">
                   <button
                     type="button"
                     className="sensor-start-button"
                     onClick={sensor.start}
                     disabled={
-                      !playerName || sensor.isBooting || sensor.isRunning
+                      isUsernameLoading ||
+                      !playerName ||
+                      sensor.isBooting ||
+                      sensor.isRunning
                     }
                   >
-                    {sensor.isBooting ? (
-                      <Loader2 className="spin" size={18} />
-                    ) : (
-                      <Play size={18} />
-                    )}
+                    <Play size={18} />
                     {sensor.isBooting
                       ? "Starting"
                       : sensor.isRunning
@@ -190,9 +642,13 @@ function App() {
                     Recenter
                   </button>
                 </div>
-              }
+              )}
             />
-            <FaceSensorPanel sensor={sensor} playerName={playerName} compact />
+            <FaceSensorPanel
+              sensor={sensor}
+              playerName={playerName}
+              compact={!isMobileLayout}
+            />
           </div>
 
           <div className="metrics-grid">
@@ -232,92 +688,64 @@ function App() {
             />
           </div>
 
-          <section className="leaderboard-panel" aria-label="Leaderboard">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Leaderboard</p>
-                <h2>Top pilots</h2>
-              </div>
-            </div>
-            <ol className="leaderboard-list">
-              {leaderboard.length > 0 ? (
-                leaderboard.map((entry, index) => (
-                  <li key={`${entry.name}-${entry.score}-${entry.date}`}>
-                    <span>#{index + 1}</span>
-                    <strong>{entry.name}</strong>
-                    <em>{entry.score}</em>
-                  </li>
-                ))
-              ) : (
-                <li className="empty-score">{leaderboardStatus}</li>
-              )}
-            </ol>
-          </section>
         </aside>
+
+        <LeaderboardModal
+          open={leaderboardOpen}
+          variant="leaderboard"
+          leaderboard={leaderboard}
+          playerEntry={leaderboardPlayerEntry}
+          status={leaderboardStatus}
+          isLoading={leaderboardLoading}
+          onClose={closeLeaderboard}
+        />
+
+        <LeaderboardModal
+          open={gameOverModal.open}
+          variant="gameOver"
+          score={gameOverModal.score}
+          playerName={playerName}
+          leaderboard={leaderboard}
+          playerEntry={leaderboardPlayerEntry}
+          status={leaderboardStatus}
+          isLoading={gameOverModal.isSaving}
+          onRestart={restartGame}
+          onStop={stopGame}
+          onClose={closeGameOverModal}
+        />
       </section>
 
-      {!playerName && (
-        <LoginModal
-          credentials={credentials}
-          authStatus={authStatus}
-          onCredentialsChange={setCredentials}
-          onSubmit={confirmPlayerName}
-        />
-      )}
-
-      {playerName && showInstructions && (
-        <div className="instruction-backdrop" role="presentation">
-          <section
-            className="instruction-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="instructionTitle"
-          >
-            <div className="instruction-header">
-              <img src="/facepilot-logo.svg" alt="" aria-hidden="true" />
-              <div>
-                <p className="eyebrow">Quick guide</p>
-                <h2 id="instructionTitle">How to play FacePilot</h2>
-              </div>
-            </div>
-
-            <div className="instruction-grid">
-              <article>
-                <Smile size={20} aria-hidden="true" />
-                <span>Smile</span>
-                <strong>Jump</strong>
-              </article>
-              <article>
-                <Crosshair size={20} aria-hidden="true" />
-                <span>Open mouth</span>
-                <strong>Shoot 4 bullets</strong>
-              </article>
-              <article>
-                <MoveHorizontal size={20} aria-hidden="true" />
-                <span>Turn head</span>
-                <strong>Move left/right</strong>
-              </article>
-              <article>
-                <Gauge size={20} aria-hidden="true" />
-                <span>Stay centered</span>
-                <strong>Better tracking</strong>
-              </article>
-            </div>
-
-            <ul className="instruction-list">
-              <li>Destroy obstacles to earn points.</li>
-              <li>Obstacle collisions reduce health based on obstacle type.</li>
-              <li>When health reaches zero, one life is lost.</li>
-            </ul>
-
-            <button type="button" onClick={() => setShowInstructions(false)}>
-              Got it
-            </button>
-          </section>
-        </div>
-      )}
-    </main>
+      </main>
+    </div>
   );
 }
 
 export default App;
+
+function getMobileStep({ isMobileLayout, leaderboardOpen, gameOverModal, sensor, cameraPermission }) {
+  if (!isMobileLayout) {
+    return 'playing';
+  }
+
+  if (leaderboardOpen) {
+    return 'leaderboard';
+  }
+
+  if (gameOverModal.open) {
+    return 'gameover';
+  }
+
+    if (cameraPermission === 'denied') {
+      return 'permission';
+    }
+
+  if (sensor.isRunning && !sensor.controls.calibrationReady) {
+    return 'calibrate';
+  }
+
+  if (sensor.isRunning) {
+    return 'playing';
+  }
+
+  return 'splash';
+}
